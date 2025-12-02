@@ -1,5 +1,4 @@
-"""
-Quick test script to validate image processing pipeline.
+"""Quick test script to validate image processing pipeline.
 Run this to verify the system works end-to-end.
 """
 
@@ -13,6 +12,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from preprocessing.preprocess_product_data import preprocess_fashion_data, validate_image_url
 from processing.image_embedding import ImageEmbeddingProcessor
 import pandas as pd
+
+# ========================================
+# CONFIGURATION: Adjust sample sizes here
+# ========================================
+URL_VALIDATION_SAMPLE_SIZE = 20  # Number of products to validate URLs (TEST 2)
+BATCH_PROCESSING_SAMPLE_SIZE = 3  # Number of images to download and process (TEST 4)
 
 
 def test_url_validation():
@@ -48,19 +53,33 @@ def test_image_url_processing():
         return
     
     print(f"  Loading CSV from {csv_path}...")
+    print(f"  Testing with {URL_VALIDATION_SAMPLE_SIZE} products (for speed)...")
+    
+    # Load only a sample for testing
+    df_full = pd.read_csv(csv_path)
+    df_sample = df_full.head(URL_VALIDATION_SAMPLE_SIZE)
+    
+    # Save sample to temp file and process
+    temp_csv = "data/temp_sample.csv"
+    df_sample.to_csv(temp_csv, index=False)
+    
     df = preprocess_fashion_data(
-        csv_path=csv_path,
+        csv_path=temp_csv,
         process_images=True,
         download_images=False  # Only validate, don't download
     )
+    
+    # Clean up temp file
+    if Path(temp_csv).exists():
+        Path(temp_csv).unlink()
     
     total = len(df)
     valid = df['image_url_valid'].sum()
     invalid = total - valid
     
-    print(f"  Total products: {total}")
-    print(f"  ✅ Valid image URLs: {valid} ({100*valid//total}%)")
-    print(f"  ❌ Invalid image URLs: {invalid} ({100*invalid//total}%)")
+    print(f"  Total products tested: {total}")
+    print(f"  ✅ Valid image URLs: {valid} ({100*valid//total if total > 0 else 0}%)")
+    print(f"  ❌ Invalid image URLs: {invalid} ({100*invalid//total if total > 0 else 0}%)")
     
     # Show sample of valid URLs
     if valid > 0:
@@ -123,7 +142,7 @@ def test_batch_processing():
         return
     
     df = pd.read_csv(csv_path)
-    df_sample = df.head(5)  # Process only 5 for quick test
+    df_sample = df.head(BATCH_PROCESSING_SAMPLE_SIZE)  # Use configurable sample size
     
     processor = ImageEmbeddingProcessor(
         cache_dir="data/image_cache",
