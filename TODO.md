@@ -20,6 +20,111 @@
 
 ## 🔥 High Priority (Week 1-2)
 
+### 0. Evaluation Infrastructure Hardening
+**Goal:** Make evaluation reproducible, automated, and CI-ready
+
+#### 0.1 Codify Relevance Label Generation
+- [ ] Create `evaluation/generate_labels.py` script
+- [ ] Parameterize label strategy (rating threshold, category matching rules)
+- [ ] Save labels to `data/evaluation/relevance_labels_v1.pkl`
+- [ ] Add label versioning (hash product catalog + rules)
+- [ ] Document label generation methodology
+- [ ] Add refresh script for when product data changes
+
+**Deliverables:**
+- Script: `evaluation/generate_labels.py`
+- Data: `data/evaluation/relevance_labels_v1.pkl`
+- Config: `config/label_generation.yaml`
+- Docs: Add "Relevance Labeling" section to README
+
+**Definition of Done:**
+- Labels reproducible from script with same seed
+- Labels versioned and tracked in git (config + hash)
+- Can regenerate labels in < 1 minute for 13k products
+
+**Estimated Time:** 2-3 hours
+
+---
+
+#### 0.2 Automated Reporting Loop
+- [ ] Create `evaluation/generate_report.py` CLI script
+- [ ] Support running from notebook or command line
+- [ ] Auto-generate `Documentation/EVALUATION.md` with timestamp
+- [ ] Version baseline results in `data/evaluation/baseline_results_v1.json`
+- [ ] Create results comparison table (v1 vs v2)
+- [ ] Add plots to report (bar charts, scatter plots)
+- [ ] Hook into notebook as final cell
+
+**Deliverables:**
+- Script: `evaluation/generate_report.py`
+- Data: `data/evaluation/baseline_results_v{N}.json`
+- Enhanced: `evaluation_benchmark.ipynb` (calls script)
+- Template: `evaluation/report_template.md`
+
+**Definition of Done:**
+- Can regenerate report with: `python evaluation/generate_report.py`
+- Report shows comparison vs. previous baseline
+- Results versioned and tracked (JSON + MD)
+
+**Estimated Time:** 3-4 hours
+
+---
+
+#### 0.3 Evaluation Pipeline Testing & CI
+- [ ] Create `tests/test_evaluation_pipeline.py`
+- [ ] Add smoke tests:
+  - Data loading with required columns
+  - Label generation (10 sample products)
+  - Each baseline runs without error
+  - Metrics calculation (sanity check ranges)
+  - FAISS index build/search
+- [ ] Add data validation checks (schema, missing values)
+- [ ] Create GitHub Actions workflow `.github/workflows/evaluation-tests.yml`
+- [ ] Add CI badge to README
+- [ ] Fast-fail on missing columns or corrupt data
+
+**Deliverables:**
+- Tests: `tests/test_evaluation_pipeline.py`
+- CI: `.github/workflows/evaluation-tests.yml`
+- Docs: Add "Testing" section to README
+
+**Definition of Done:**
+- All tests pass in < 30 seconds
+- CI runs on every PR to main/pre-process
+- Clear error messages for data issues
+
+**Estimated Time:** 3-4 hours
+
+---
+
+#### 0.4 Data Asset Tracking & Sample Datasets
+- [ ] Create `data/samples/products_100.csv` (100 products for quick tests)
+- [ ] Create `data/samples/products_1000.csv` (1k for dev)
+- [ ] Document storage paths in `DATA_MANAGEMENT.md`:
+  - Products CSV: 13,156 items, ~5MB
+  - Image cache: ~13k images, ~2GB
+  - Embeddings: 512-dim × 13k, ~26MB (float32)
+  - FAISS index: ~30MB (HNSW)
+  - Evaluation labels: ~1MB (pickle)
+- [ ] Add `.gitattributes` for LFS tracking (images, embeddings)
+- [ ] Add size checks in CI (fail if >100MB without LFS)
+- [ ] Create `scripts/create_sample_data.py`
+
+**Deliverables:**
+- Samples: `data/samples/*.csv`
+- Docs: `DATA_MANAGEMENT.md`
+- Script: `scripts/create_sample_data.py`
+- Config: `.gitattributes` (LFS rules)
+
+**Definition of Done:**
+- Can run full pipeline on 100-sample in < 5 minutes
+- All data paths documented with sizes
+- Sample data checked into git (< 1MB)
+
+**Estimated Time:** 2-3 hours
+
+---
+
 ### 1. Image Embeddings with CLIP
 **Goal:** Generate embeddings for all 13,156 products using CLIP model
 
@@ -34,7 +139,16 @@
 **Deliverables:**
 - Script: `generate_image_embeddings.py`
 - Data: `data/embeddings/clip_embeddings.npy` (512-dim × 13,156 items)
+- Metadata: `data/embeddings/embedding_metadata.json` (product_id map, timestamp, model)
 - Docs: Update README with CLIP integration steps
+
+**Definition of Done:**
+- ✅ Embeddings generated for all 13,156 products
+- ✅ Verified on 100 samples: cosine similarity makes sense
+- ✅ L2-normalized for cosine distance
+- ✅ Mean embedding magnitude ≈ 1.0 (normalized check)
+- ✅ Generation time logged (e.g., ~2 hours with GPU)
+- ✅ Embeddings loadable in < 5 seconds
 
 **Estimated Time:** 4-6 hours (including GPU setup and batch processing)
 
@@ -54,6 +168,14 @@
 - Enhanced: `hybrid_recommender_example.py`
 - New cell in `evaluation_benchmark.ipynb` for hybrid evaluation
 - Updated `EVALUATION.md` with hybrid results
+- Config: `config/hybrid_weights.yaml` (tuned α, β)
+
+**Definition of Done:**
+- ✅ Hybrid NDCG@10 > 0.35 (beats text-only 0.286)
+- ✅ Tested on 50 queries with real embeddings
+- ✅ Grid search shows optimal α, β (e.g., 0.4 text, 0.6 image)
+- ✅ Results table comparing text-only vs image-only vs hybrid
+- ✅ Latency measured: hybrid < 10ms per query
 
 **Estimated Time:** 3-4 hours
 
@@ -71,8 +193,18 @@
 
 **Deliverables:**
 - Index files: `data/indexes/hnsw_clip_512d.index`
+- Metadata: `data/indexes/product_ids.json`, `data/indexes/index_metadata.json`
 - Script: `build_faiss_index.py`
+- Script: `scripts/benchmark_faiss_index.py` (latency tests)
 - Docs: Add indexing guide to README
+
+**Definition of Done:**
+- ✅ HNSW index built on real CLIP embeddings
+- ✅ Search latency < 1ms (p95) for single query
+- ✅ Batch search < 0.2ms per query (100 queries)
+- ✅ Index size < 50MB
+- ✅ Load time < 2 seconds
+- ✅ Recall@10 > 0.95 vs brute-force (accuracy check)
 
 **Estimated Time:** 2-3 hours
 
