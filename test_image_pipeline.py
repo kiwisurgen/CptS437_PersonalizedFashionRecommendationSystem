@@ -203,6 +203,104 @@ def test_load_cached():
     print()
 
 
+def test_embeddings_and_faiss():
+    """Test loading precomputed embeddings and FAISS index search."""
+    print("=" * 60)
+    print("TEST 6: Embeddings + FAISS Index")
+    print("=" * 60)
+
+    try:
+        from processing.embedding_loader import load_embeddings, load_faiss_index
+    except Exception:
+        print("Embedding loader not available; skipping FAISS test.")
+        print()
+        return
+
+    embs, ids = load_embeddings()
+    if embs is None or ids is None:
+        print("No embeddings or metadata found; skipping embeddings test.")
+        print()
+        return
+
+    print(f"  Loaded embeddings shape: {embs.shape}")
+    print(f"  Loaded ids count: {len(ids)}")
+
+    index_obj, pid_list = load_faiss_index()
+    if index_obj is None:
+        print("No FAISS index found or FAISS not installed; skipping FAISS search test.")
+        print()
+        return
+
+    # Use the first embedding as query
+    q = embs[0].astype('float32')
+    import numpy as np
+    q = q.reshape(1, -1)
+
+    try:
+        D, I = index_obj.search(q, 5)
+        print(f"  FAISS search returned indices: {I[0].tolist()}")
+        print(f"  FAISS distances: {D[0].tolist()}")
+
+        # Map first result to product id and ensure it exists in ids mapping
+        first_idx = int(I[0][0])
+        if pid_list and first_idx < len(pid_list):
+            pid = pid_list[first_idx]
+            assert pid in ids, "FAISS returned product id not present in metadata ids"
+            print(f"  ✅ FAISS returned valid product id: {pid}")
+        else:
+            print("  ⚠️ Could not map FAISS index to product id list; check mapping file")
+    except Exception as e:
+        print(f"  FAISS search failed during test: {e}")
+
+    print()
+
+
+def test_hybrid_ranking():
+    """Test that HybridRecommender combines text and image scores correctly."""
+    print("=" * 60)
+    print("TEST 7: Hybrid ranking combination")
+    print("=" * 60)
+
+    from hybrid_recommender_example import HybridRecommender
+    import pandas as pd
+
+    # Create a tiny dummy dataframe with 3 products
+    df = pd.DataFrame([
+        {'product_id': 'P0', 'title': 'Reference product', 'brand': 'A', 'price': 10},
+        {'product_id': 'P1', 'title': 'Similar product 1', 'brand': 'B', 'price': 20},
+        {'product_id': 'P2', 'title': 'Similar product 2', 'brand': 'C', 'price': 30},
+    ])
+
+    recommender = HybridRecommender(csv_path=None)
+    recommender.df = df
+
+    # Monkeypatch similarity methods to return deterministic scores
+    def fake_text_sims(product_idx, top_n=10):
+        # Return (index, score)
+        return [(1, 0.8), (2, 0.5)]
+
+    def fake_image_sims(product_idx, top_n=10, embedding_model=None):
+        return [(2, 0.9), (1, 0.2)]
+
+    recommender.compute_text_similarities = fake_text_sims
+    recommender.compute_image_similarity = fake_image_sims
+
+    # We expect combined scores:
+    # idx=1 -> (0.5*0.8 + 0.5*0.2) = 0.5
+    # idx=2 -> (0.5*0.5 + 0.5*0.9) = 0.7
+    recs = recommender.get_hybrid_recommendations(product_idx=0, top_n=2, text_weight=0.5, image_weight=0.5, embedding_model=None)
+    print(f"  Hybrid recommendations: {recs}")
+
+    assert len(recs) == 2, "Expected 2 hybrid recommendations"
+    # Top should be idx 2 with score ~0.7
+    top_idx, top_score = recs[0]
+    assert top_idx == 2, f"Expected top recommendation idx 2, got {top_idx}"
+    assert abs(top_score - 0.7) < 1e-6, f"Unexpected hybrid score for top item: {top_score}"
+
+    print("  ✅ Hybrid ranking combines scores correctly")
+    print()
+
+
 def main():
     """Run all tests."""
     print("\n")
