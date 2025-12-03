@@ -188,6 +188,7 @@ image_array = processor.load_cached_image("product_id")
 - **[IMAGE_PROCESSING.md](IMAGE_PROCESSING.md)** - Comprehensive image processing guide
 - **[INTEGRATION_SUMMARY.md](INTEGRATION_SUMMARY.md)** - Implementation overview
 - **[hybrid_recommender_example.py](hybrid_recommender_example.py)** - Full integration example
+ - **[Download_Data.md](Download_Data.md)** - How to obtain large ignored data files (embeddings, image cache)
 
 ## 🧪 Testing
 

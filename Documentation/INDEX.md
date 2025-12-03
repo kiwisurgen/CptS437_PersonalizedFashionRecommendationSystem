@@ -281,6 +281,7 @@ Example: hybrid_recommender_example.py - if __name__ == "__main__"
 | Verify setup | test_image_pipeline.py | Run it |
 | Check installation | setup.py | Run it |
 | Reference | SUMMARY.py | All |
+| Download data | Download_Data.md | Drive |
 
 ---
 
