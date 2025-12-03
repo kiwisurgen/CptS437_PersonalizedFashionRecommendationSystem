@@ -16,4 +16,12 @@ seaborn>=0.11.0
 # For GPU support: pip install faiss-gpu
 # faiss-cpu>=1.7.0
 
+# CLIP / Embedding dependencies (optional but required to generate image embeddings)
+# CPU (recommended for local/dev):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# GPU (if you have CUDA and want GPU acceleration):
+#   pip install "torch>=2.0.0" "torchvision>=0.15.0" --extra-index-url https://download.pytorch.org/whl/cu118
+transformers>=4.30.0
+# For most setups also install torch and torchvision per your platform (see above)
+
 

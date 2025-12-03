@@ -70,6 +70,13 @@
   - Learning path
 
 - **[requirements.txt](requirements.txt)** - Python dependencies
+
+### New / Implemented Utilities
+- **`generate_image_embeddings.py`** - CLIP embedding generation script (GPU-enabled, sample/full run, caching)
+- **`cli_recommender.py`** - Command-line recommender (supports `--product-id`, `--query`, `--image-url`)
+ - **[CLIP_QUICK_START.md](CLIP_QUICK_START.md)** - CLIP embedding quick-start (sample & full run commands)
+ - **[IMAGE_PROCESSING_ADDENDUM.md](IMAGE_PROCESSING_ADDENDUM.md)** - Image preprocessing, caching, and resume behaviour
+
   - Core packages
   - Image processing
   - Optional embedding models
