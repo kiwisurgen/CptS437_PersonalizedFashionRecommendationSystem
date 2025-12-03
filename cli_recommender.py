@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 import pandas as pd
 import json
+import textwrap
 import requests
 from io import BytesIO
 from PIL import Image
@@ -234,13 +235,63 @@ def recommend_by_image_url(df, image_url, top_n=5):
     return recs
 
 
-def print_recs(recs):
+def _format_recs_text(recs, df=None, title_width=60):
+    """Return a pretty text table for recommendations.
+
+    Columns: Rank | Product ID | Score | Title
+    """
+    if not recs:
+        return "No recommendations."
+
+    lines = []
+    hdr_rank = "#"
+    hdr_pid = "Product ID"
+    hdr_score = "Score"
+    hdr_title = "Title"
+
+    # column widths
+    w_rank = 4
+    w_pid = 14
+    w_score = 8
+    w_title = title_width
+
+    header = f"{hdr_rank:>{w_rank}}  {hdr_pid:<{w_pid}}  {hdr_score:>{w_score}}  {hdr_title:<{w_title}}"
+    sep = f"{'-' * w_rank}  {'-' * w_pid}  {'-' * w_score}  {'-' * w_title}"
+    lines.append(header)
+    lines.append(sep)
+
+    for i, (pid, title, score) in enumerate(recs, start=1):
+        short_title = textwrap.shorten(str(title), width=title_width, placeholder="...")
+        lines.append(f"{i:>{w_rank}}.  {str(pid):<{w_pid}}  {score:>{w_score}.4f}  {short_title:<{w_title}}")
+
+    return "\n".join(lines)
+
+
+def _format_recs_json(recs, df=None):
+    out = []
+    for i, (pid, title, score) in enumerate(recs, start=1):
+        entry = {"rank": i, "product_id": pid, "title": title, "score": score}
+        # optionally enrich with df info if provided
+        if df is not None:
+            row = df[df['product_id'] == pid]
+            if not row.empty:
+                r = row.iloc[0]
+                for col in ['brand', 'price', 'category', 'product_url']:
+                    if col in r:
+                        entry[col] = r[col]
+        out.append(entry)
+    return json.dumps(out, indent=2, ensure_ascii=False)
+
+
+def print_recs(recs, df=None, out_format='text'):
     if not recs:
         print("No recommendations.")
         return
-    print("Top recommendations:")
-    for pid, title, score in recs:
-        print(f"- {pid}: {title[:80]} (score: {score:.4f})")
+
+    if out_format == 'json':
+        print(_format_recs_json(recs, df=df))
+    else:
+        print(_format_recs_text(recs, df=df))
 
 
 def main():
@@ -250,20 +301,80 @@ def main():
     parser.add_argument("--query", help="Recommend for this text query")
     parser.add_argument("--image-url", help="Recommend for this image URL (requires CLIP embeddings or model)")
     parser.add_argument("--top-n", type=int, default=5, help="Number of recommendations")
+    parser.add_argument("--format", choices=['text', 'json'], default='text', help="Output format")
+    parser.add_argument("--interactive", action="store_true", help="Run interactive prompt mode")
 
     args = parser.parse_args()
 
     df = load_products(args.csv)
 
+    def _interactive_loop():
+        """Run a simple interactive prompt loop for the CLI."""
+        print("Interactive recommender — enter 'q' at any prompt to quit")
+        while True:
+            print("\nSelect mode:\n  1) product id\n  2) text query\n  3) image URL\n  4) quit")
+            choice = input("Choice [1-4]: ").strip()
+            if choice.lower() in ['4', 'q', 'quit', 'exit']:
+                print("Exiting interactive mode.")
+                break
+
+            if choice not in ['1', '2', '3']:
+                print("Invalid choice — please enter 1, 2, 3 or 4.")
+                continue
+
+            top_n_str = input(f"Top N results (default {args.top_n}): ").strip()
+            if top_n_str.lower() in ['q', 'quit', 'exit']:
+                break
+            try:
+                top_n = int(top_n_str) if top_n_str else args.top_n
+            except Exception:
+                print("Invalid number, using default.")
+                top_n = args.top_n
+
+            out_fmt = input(f"Output format ('text' or 'json', default {args.format}): ").strip()
+            if out_fmt.lower() in ['q', 'quit', 'exit']:
+                break
+            if out_fmt not in ['text', 'json', '']:
+                print("Unknown format, using default.")
+                out_fmt = args.format
+            out_fmt = out_fmt if out_fmt else args.format
+
+            if choice == '1':
+                pid = input("Enter product id: ").strip()
+                if pid.lower() in ['q', 'quit', 'exit']:
+                    break
+                recs = recommend_by_product(df, pid, top_n=top_n)
+                print_recs(recs, df=df, out_format=out_fmt)
+            elif choice == '2':
+                q = input("Enter text query: ").strip()
+                if q.lower() in ['q', 'quit', 'exit']:
+                    break
+                recs = recommend_by_query(df, q, top_n=top_n)
+                print_recs(recs, df=df, out_format=out_fmt)
+            elif choice == '3':
+                url = input("Enter image URL: ").strip()
+                if url.lower() in ['q', 'quit', 'exit']:
+                    break
+                recs = recommend_by_image_url(df, url, top_n=top_n)
+                print_recs(recs, df=df, out_format=out_fmt)
+
+    # If interactive flag set, or no mode args provided and running in a TTY, enter interactive mode
+    if args.interactive or (not (args.product_id or args.query or args.image_url) and sys.stdin.isatty()):
+        try:
+            _interactive_loop()
+        except (KeyboardInterrupt, EOFError):
+            print("\nInteractive session ended.")
+        return
+
     if args.product_id:
         recs = recommend_by_product(df, args.product_id, top_n=args.top_n)
-        print_recs(recs)
+        print_recs(recs, df=df, out_format=args.format)
     elif args.query:
         recs = recommend_by_query(df, args.query, top_n=args.top_n)
-        print_recs(recs)
+        print_recs(recs, df=df, out_format=args.format)
     elif args.image_url:
         recs = recommend_by_image_url(df, args.image_url, top_n=args.top_n)
-        print_recs(recs)
+        print_recs(recs, df=df, out_format=args.format)
     else:
         parser.print_help()
 

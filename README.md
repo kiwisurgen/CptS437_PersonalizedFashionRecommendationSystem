@@ -17,6 +17,40 @@ This system processes fashion product data and uses both **text embeddings** (TF
 - ✅ **Batch Processing**: Efficiently handle large product catalogs
 - ✅ **Hybrid Recommendations**: Weighted combination of text and image similarity
 
+## Algorithms
+
+This project uses a small set of well-tested algorithms and engineering patterns for multimodal recommendations. The key algorithms and design decisions are summarized below with pointers to the implementation in this repository.
+
+- **Text — TF‑IDF + Cosine Similarity:**
+    - Titles are converted to TF‑IDF vectors using scikit-learn's `TfidfVectorizer` (see `processing/tfidf_title_similarity.py`).
+    - Similarity between products is computed with cosine similarity on TF‑IDF vectors and returned as a ranked list (top‑N).
+
+- **Image — CLIP Embeddings (512‑d) / Vision Encoders:**
+    - Images are preprocessed (resize, normalize) and passed to a vision encoder (CLIP by default) to produce fixed‑length embeddings (`processing/image_embedding.py`, `generate_image_embeddings.py`).
+    - Embeddings are L2‑normalized to unit length so inner‑product ~= cosine similarity; this enables fast approx. cosine search with FAISS.
+
+- **Approximate Nearest Neighbours — FAISS (HNSW):**
+    - We build a FAISS HNSW index on the normalized image embeddings for sub‑millisecond nearest‑neighbour queries (see `scripts/build_faiss_index.py` and `evaluation/ann_indexing.py`).
+    - The index is stored on disk (`data/indexes/*.faiss`) together with a product‑id mapping JSON so results map back to catalog items.
+
+- **Hybrid (Late Fusion) Ranking:**
+    - We combine independent modality scores (text and image) using a weighted sum after normalizing each score type to a comparable range.
+    - The hybrid ranking is implemented in `hybrid_recommender_example.py`. The weights `text_weight` and `image_weight` are tunable hyperparameters.
+
+- **CLI & Runtime Fallback Logic:**
+    - The recommender CLI uses a robust fallback chain for image queries:
+        1. If a local CLIP model is available, compute an embedding for the query image and search the FAISS index.
+        2. If FAISS is available, use the prebuilt HNSW index for fast search.
+        3. If FAISS is not present but precomputed embeddings exist, perform a brute‑force numpy dot / cosine search over the stored embeddings.
+        4. If none are available, the CLI reports a clear error and suggests generating embeddings or building the index.
+
+- **Preprocessing & Caching:**
+    - Images are validated, downloaded and cached to `data/image_cache/` during preprocessing (`preprocessing/preprocess_product_data.py`).
+    - Cached images are resized and normalized (224×224 default) to match embedding model input conventions.
+
+- **Evaluation & Metrics:**
+    - The evaluation pipeline uses P@K, NDCG, MRR, Hit Rate and MAP and supports headless notebook execution via `evaluation/generate_report.py` and `evaluation_benchmark.ipynb`.
+
 ## 📁 Project Structure
 
 ```
@@ -37,6 +71,7 @@ CptS437_PersonalizedFashionRecommendationSystem/
 ├── Documentation/
 │   ├── IMAGE_PROCESSING.md             # Image processing guide
 │   ├── INTEGRATION_SUMMARY.md          # Implementation overview
+│   ├── CLI_RECOMMENDER.md              # CLI usage guide
 │   └── EVALUATION.md                   # Evaluation results (auto-generated)
 ├── test_image_pipeline.py              # Verification tests
 ├── evaluation_benchmark.ipynb          # Reproducible evaluation pipeline
