@@ -217,6 +217,30 @@ processor.batch_process_images(df)
 embeddings = processor.get_batch_embeddings(product_ids, model)
 ```
 
+### CLIP + CUDA (Windows PowerShell)
+Follow these exact commands to set up a Python virtual environment, install a CUDA 13.0-compatible PyTorch build, install `transformers`, verify GPU availability, and run the embedding generator. Adjust `--batch-size` for your GPU memory (RTX 3060 Ti — recommended 2..8).
+
+```powershell
+# 1) Create & activate a venv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+
+# 2) Install PyTorch + torchvision for CUDA 13.0
+# If this errors, use https://pytorch.org/get-started/locally/ to generate the correct command
+pip install --index-url https://download.pytorch.org/whl/cu130 torch torchvision --upgrade
+
+# 3) Install Transformers + repo requirements
+pip install transformers accelerate
+pip install -r .\requirements.txt
+
+# 4) Quick verification
+python -c "import torch; print('torch', torch.__version__); print('cuda_available', torch.cuda.is_available()); print('device_count', torch.cuda.device_count()); print('device_name', torch.cuda.get_device_name(0) if torch.cuda.device_count()>0 else 'N/A')"
+
+# 5) Run the embedding generator (sample). Reduce --batch-size if you see OOM errors.
+python .\generate_image_embeddings.py --sample 100 --download-missing --batch-size 4 --output data/embeddings/clip_embeddings_sample.npy --meta data/embeddings/embedding_metadata_sample.json
+```
+
 ### Vision Transformer (ViT)
 ```python
 from transformers import ViTModel
