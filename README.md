@@ -301,6 +301,15 @@ Compatible models:
 - EfficientNet
 - And more!
 
+FAISS index (HNSW)
+
+After you generate embeddings, build a FAISS ANN index for fast production search. We provide `scripts/build_faiss_index.py` which builds an HNSW index and saves it to `data/indexes/`. HNSW delivers low-latency nearest-neighbour queries and is a good default for mid-sized catalogs. The script saves a product-id mapping JSON so the CLI can quickly map index results back to product ids.
+
+Example:
+```powershell
+python .\scripts\build_faiss_index.py
+```
+
 ## 🚦 Performance
 
 ### Recommendation Quality (50 test queries, 13,156 products)

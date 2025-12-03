@@ -33,3 +33,18 @@ Performance & production tips
 - For production/large-scale runs, use a GPU-backed `torch` install and increase `--batch-size` to improve throughput.
 - For long-term storage of large embedding files, consider `git lfs` or a separate artifact store instead of committing to Git.
 
+Indexing (FAISS)
+- After generating CLIP embeddings, we build a FAISS HNSW index to enable very fast approximate nearest-neighbour search. The project includes a helper script `scripts/build_faiss_index.py` which builds an HNSW index and saves the index and metadata to `data/indexes/`.
+- HNSW is chosen for a good balance of build-time, memory use, and query latency on medium-to-large catalogs. The index is built with inner-product metric on L2-normalized embeddings so that inner-product matches cosine similarity.
+
+Example (build index):
+```powershell
+python .\scripts\build_faiss_index.py
+```
+
+Files produced:
+- `data/indexes/hnsw_clip_<dim>.faiss`
+- `data/indexes/hnsw_clip_<dim>.pkl`
+- `data/indexes/hnsw_clip_<dim>_product_ids.json`
+
+

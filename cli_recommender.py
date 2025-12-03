@@ -28,6 +28,14 @@ def _safe_import(name):
         return None
 
 
+# local loader for embeddings/index
+try:
+    from processing.embedding_loader import load_embeddings, load_faiss_index
+except Exception:
+    load_embeddings = None
+    load_faiss_index = None
+
+
 def load_products(csv_path: str):
     if not Path(csv_path).exists():
         print(f"Products CSV not found: {csv_path}")
@@ -150,71 +158,72 @@ def recommend_by_image_url(df, image_url, top_n=5):
             return []
 
     # Search for nearest embeddings
-    # Try FAISS
-    faiss = _safe_import("faiss")
-    index_path = Path("data/indexes/hnsw_clip_512d.index")
-    if faiss and index_path.exists():
+    # 1) Try FAISS index via loader (preferred)
+    if load_faiss_index is not None:
+        try:
+            index_obj, pid_list = load_faiss_index()
+        except Exception:
+            index_obj, pid_list = None, None
+    else:
+        index_obj, pid_list = None, None
+
+    if index_obj is not None:
         try:
             import faiss
-            index = faiss.read_index(str(index_path))
-            # embeddings must be float32 and L2 normalized
             q = np.array([image_embedding], dtype="float32")
-            D, I = index.search(q, top_n)
-            ids_path = Path("data/indexes/product_ids.json")
-            if ids_path.exists():
-                ids = json.load(open(ids_path))
-            else:
-                ids = None
+            # ensure shape
+            if q.ndim == 1:
+                q = q.reshape(1, -1)
+            D, I = index_obj.search(q, top_n)
             recs = []
-            for i, d in zip(I[0], D[0]):
-                if i < 0:
+            for idx, dist in zip(I[0], D[0]):
+                if idx < 0:
                     continue
-                pid = ids[i] if ids else str(i)
+                pid = pid_list[idx] if (pid_list and idx < len(pid_list)) else str(idx)
                 row = df[df['product_id'] == pid]
                 title = row.iloc[0]['title'] if not row.empty else ""
-                recs.append((pid, title, float(1.0 - d)))
+                # For inner-product on normalized vectors, higher is better (dist is similarity)
+                # faiss returns distances consistent with index metric; for HNSW+IP dist is similarity
+                score = float(dist)
+                recs.append((pid, title, score))
             return recs
         except Exception as e:
             print(f"FAISS search failed: {e}")
 
-    # Fallback: load embeddings numpy and metadata
-    emb_path = Path("data/embeddings/clip_embeddings.npy")
-    meta_path = Path("data/embeddings/embedding_metadata.json")
-    if not emb_path.exists() or not meta_path.exists():
-        print("No embeddings found. Generate embeddings first (see QUICK_START).")
+    # 2) Fallback: load numpy embeddings and metadata via loader
+    embs, ids = (None, None)
+    if load_embeddings is not None:
+        try:
+            embs, ids = load_embeddings()
+        except Exception:
+            embs, ids = None, None
+
+    if embs is None or ids is None:
+        print("No embeddings/index found. Generate embeddings first (see QUICK_START).")
         return []
 
-    embs = np.load(str(emb_path))
-    meta = json.load(open(str(meta_path)))
-    ids = meta.get("ids", [])
-
-    # If embs is images preprocessed arrays (4D), flatten appropriately
+    # Flatten/prep embeddings if necessary and normalize for cosine
     if embs.ndim == 4:
         embs_proc = embs.reshape(embs.shape[0], -1)
-        # L2 normalize
-        norms = np.linalg.norm(embs_proc, axis=1, keepdims=True)
-        norms[norms == 0] = 1.0
-        embs_norm = embs_proc / norms
     else:
-        embs_norm = embs
+        embs_proc = embs
 
-    q = image_embedding.astype("float32")
-    # if q is flattened and embs are CLIP dims, try to reduce by PCA? For now compute cosine with what we have
-    if embs_norm.ndim == 2 and q.ndim == 1 and embs_norm.shape[1] == q.shape[0]:
-        sims = embs_norm @ q
-    else:
-        # try to project or compute using broadcast (fallback may be poor)
-        sims = np.zeros(embs_norm.shape[0], dtype="float32")
-        try:
-            for i in range(embs_norm.shape[0]):
-                a = embs_norm[i]
-                denom = (np.linalg.norm(a) * np.linalg.norm(q))
-                sims[i] = float(a.dot(q) / (denom if denom > 0 else 1.0))
-        except Exception:
-            print("Incompatible embedding shapes; cannot compute similarity.")
-            return []
+    # L2-normalize embeddings and query
+    embs_norm = embs_proc.astype('float32')
+    norms = np.linalg.norm(embs_norm, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    embs_norm = embs_norm / norms
 
-    # top-n
+    q = image_embedding.astype('float32')
+    if q.ndim == 1:
+        q = q.reshape(-1)
+    q_norm = q / (np.linalg.norm(q) if np.linalg.norm(q) > 0 else 1.0)
+
+    if embs_norm.shape[1] != q_norm.shape[0]:
+        print("Embedding dimension mismatch between query and stored embeddings; cannot compute similarity.")
+        return []
+
+    sims = embs_norm @ q_norm
     idxs = np.argsort(-sims)[:top_n]
     recs = []
     for i in idxs:

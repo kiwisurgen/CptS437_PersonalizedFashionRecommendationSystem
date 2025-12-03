@@ -50,6 +50,25 @@ Outputs
 - Embeddings: `data/embeddings/clip_embeddings.npy` (float32, shape: N x D)
 - Metadata: `data/embeddings/embedding_metadata.json` (list of product ids / ordering)
 
+Build a FAISS ANN index
+
+After generating embeddings, we recommend building a FAISS ANN index to enable sub-millisecond nearest-neighbour search in production. The included helper script builds an HNSW index (fast, memory-efficient graph-based ANN) and writes files under `data/indexes/`.
+
+Example (build HNSW index):
+
+```powershell
+python .\scripts\build_faiss_index.py
+```
+
+What this produces:
+- `data/indexes/hnsw_clip_<dim>.faiss` — the FAISS index file
+- `data/indexes/hnsw_clip_<dim>.pkl` — index metadata (pickle)
+- `data/indexes/hnsw_clip_<dim>_product_ids.json` — product id ordering for quick lookup
+
+Why HNSW and inner-product?
+- HNSW provides excellent query throughput and low latency for large catalogs. We L2-normalize embeddings and use inner-product (IP) metric so that IP search approximates cosine similarity (cosine(a,b) == dot(a,b) when vectors are normalized).
+
+
 Tips & troubleshooting
 - If you see the script fallback to saving preprocessed images rather than embeddings, your environment likely lacks `transformers` or a working `torch` install. Re-run in a venv where those are installed.
 - The script caches downloaded images under `data/image_cache/<product_id>.<ext>` — re-running skips already-cached images.
