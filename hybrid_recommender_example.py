@@ -117,8 +117,12 @@ class HybridRecommender:
         return similarities[:top_n]
     
     def get_hybrid_recommendations(self, product_idx: int, top_n: int = 5,
-                                   text_weight: float = 0.5,
-                                   image_weight: float = 0.5,
+                                   text_weight: float = 0.3,
+                                   image_weight: float = 0.3,
+                                   category_weight: float = 0.1,
+                                   brand_weight: float = 0.1,
+                                   price_weight: float = 0.1,
+                                   rating_weight: float = 0.1,
                                    embedding_model=None) -> list:
         """
         Get recommendations using hybrid approach (text + image).
