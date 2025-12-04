@@ -288,7 +288,11 @@ def test_hybrid_ranking():
     # We expect combined scores:
     # idx=1 -> (0.5*0.8 + 0.5*0.2) = 0.5
     # idx=2 -> (0.5*0.5 + 0.5*0.9) = 0.7
-    recs = recommender.get_hybrid_recommendations(product_idx=0, top_n=2, text_weight=0.5, image_weight=0.5, embedding_model=None)
+    recs = recommender.get_hybrid_recommendations(product_idx=0, top_n=2, 
+                                                  text_weight=0.3, image_weight=0.3, 
+                                                  category_weight=0.1, brand_weight=0.1, 
+                                                  price_weight=0.1, rating_weight=0.1, 
+                                                  embedding_model=None)
     print(f"  Hybrid recommendations: {recs}")
 
     assert len(recs) == 2, "Expected 2 hybrid recommendations"

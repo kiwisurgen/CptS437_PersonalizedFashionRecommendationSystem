@@ -11,6 +11,9 @@ import numpy as np
 # Existing modules
 from preprocessing.preprocess_product_data import preprocess_fashion_data
 from processing.tfidf_title_similarity import tfidf_cosine_sim
+from processing.onehot_generic_similarity import onehot_cosine_sim
+from processing.price_similarity import price_similarity
+from processing.rating_similarity import rating_similarity
 from processing.image_embedding import ImageEmbeddingProcessor
 
 
@@ -66,6 +69,26 @@ class HybridRecommender:
         """
         products = self.df['title'].tolist()
         sim_scores = tfidf_cosine_sim(idx=product_idx, n=top_n, products=products)
+        return sim_scores
+    
+    def compute_category_similarities(self, product_idx: int, top_n: int = 5) -> list:
+        categories = self.df['category'].tolist()
+        sim_scores = onehot_cosine_sim(idx=product_idx, n=top_n, items=categories)
+        return sim_scores
+    
+    def compute_brand_similarities(self, product_idx: int, top_n: int = 5) -> list: 
+        brands = self.df['brand'].tolist()
+        sim_scores = onehot_cosine_sim(idx=product_idx, n=top_n, items=brands)
+        return sim_scores
+    
+    def compute_price_similarities(self, product_idx: int, top_n: int = 5) -> list:
+        prices = self.df['price'].tolist()
+        sim_scores = price_similarity(idx=product_idx, n=top_n, prices=prices, alpha=3.0, normalize=True)
+        return sim_scores
+    
+    def compute_rating_similarities(self, product_idx: int, top_n: int = 5) -> list:
+        ratings = self.df['rating'].tolist()
+        sim_scores = rating_similarity(idx=product_idx, n=top_n, ratings=ratings, alpha=2.0, normalize=True)
         return sim_scores
     
     def compute_image_similarity(self, product_idx: int, top_n: int = 5, 
@@ -138,27 +161,46 @@ class HybridRecommender:
             List of recommendations with hybrid scores
         """
         # Ensure weights sum to 1
-        total_weight = text_weight + image_weight
+        total_weight = text_weight + image_weight + category_weight + brand_weight + price_weight + rating_weight
         text_weight = text_weight / total_weight
         image_weight = image_weight / total_weight
+        category_weight = category_weight / total_weight
+        brand_weight = brand_weight / total_weight
+        price_weight = price_weight / total_weight
+        rating_weight = rating_weight / total_weight
         
         # Compute both similarities
         text_sims = self.compute_text_similarities(product_idx, top_n=top_n*2)
         image_sims = self.compute_image_similarity(product_idx, top_n=top_n*2, 
                                                    embedding_model=embedding_model)
+        cat_sims = self.compute_category_similarities(product_idx, top_n=top_n*2)
+        brand_sims = self.compute_brand_similarities(product_idx, top_n=top_n*2)
+        price_sims = self.compute_price_similarities(product_idx, top_n=top_n*2)
+        rating_sims = self.compute_rating_similarities(product_idx, top_n=top_n*2)
         
         # Create score dictionaries
         text_scores = {idx: score for idx, score in text_sims}
         image_scores = {idx: score for idx, score in image_sims}
+        cat_scores = {idx: score for idx, score in cat_sims}
+        brand_scores = {idx: score for idx, score in brand_sims}
+        price_scores = {idx: score for idx, score in price_sims}
+        rating_scores = {idx: score for idx, score in rating_sims}
         
         # Combine scores for all products
-        all_product_ids = set(text_scores.keys()) | set(image_scores.keys())
+        all_product_ids = set(text_scores.keys()) | set(image_scores.keys()) | set(cat_scores.keys()) | \
+                          set(brand_scores.keys()) | set(price_scores.keys()) | set(rating_scores.keys())
         hybrid_scores = []
         
         for idx in all_product_ids:
             text_sim = text_scores.get(idx, 0.0)
             image_sim = image_scores.get(idx, 0.0)
-            hybrid_sim = (text_weight * text_sim) + (image_weight * image_sim)
+            cat_sim = cat_scores.get(idx, 0.0)
+            brand_sim = brand_scores.get(idx, 0.0)
+            price_sim = price_scores.get(idx, 0.0)
+            rating_sim = rating_scores.get(idx, 0.0)
+            hybrid_sim = (text_weight * text_sim) + (image_weight * image_sim) + \
+                         (category_weight * cat_sim) + (brand_weight * brand_sim) + \
+                         (price_weight * price_sim) + (rating_weight * rating_sim)
             hybrid_scores.append((idx, hybrid_sim))
         
         # Sort and return top N
@@ -215,8 +257,12 @@ if __name__ == "__main__":
     hybrid_recs = recommender.get_hybrid_recommendations(
         product_idx=ref_product_idx,
         top_n=5,
-        text_weight=0.5,
+        text_weight=0.3,
         image_weight=0.5,
+        category_weight = 0.1,
+        brand_weight = 0.1,
+        price_weight = 0.1,
+        rating_weight = 0.1,
         embedding_model=None  # Would need actual embedding model
     )
     recommender.display_recommendations(hybrid_recs, "Top 5 Hybrid Recommendations")
