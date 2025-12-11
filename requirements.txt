@@ -1,0 +1,27 @@
+# Core dependencies
+pandas>=1.3.0
+scikit-learn>=0.24.0
+numpy>=1.21.0
+
+# Image processing
+Pillow>=9.0.0
+requests>=2.28.0
+
+# Evaluation & Visualization
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# ANN Search (optional - for fast similarity search)
+# Install with: pip install faiss-cpu
+# For GPU support: pip install faiss-gpu
+# faiss-cpu>=1.7.0
+
+# CLIP / Embedding dependencies (optional but required to generate image embeddings)
+# CPU (recommended for local/dev):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# GPU (if you have CUDA and want GPU acceleration):
+#   pip install "torch>=2.0.0" "torchvision>=0.15.0" --extra-index-url https://download.pytorch.org/whl/cu118
+transformers>=4.30.0
+# For most setups also install torch and torchvision per your platform (see above)
+
+
